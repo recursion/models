@@ -1,7 +1,7 @@
 {
-  "name": "symians-lib",
+  "name": "symians-models",
   "version": "0.0.1",
-  "description": "Common modules for the symians project",
+  "description": "Common db models and utils for the symians project",
   "main": "index.js",
   "scripts": {
     "test:cont": "mocha --watch --opts ./mocha.opts src/**/*.spec.js",
@@ -11,13 +11,18 @@
   },
   "author": "Michael Symmes<msymmes@gmail.com>",
   "license": "MIT",
-  "dependencies": {},
+  "dependencies": {
+    "bluebird": "^2.10.2",
+    "redis": "^2.2.3",
+    "winston": "^1.1.0"
+  },
   "devDependencies": {
     "babel": "^5.8.23",
     "babel-eslint": "^4.1.3",
     "chai": "^3.3.0",
     "eslint": "^1.6.0",
     "mocha": "^2.3.3",
-    "sinon": "^1.17.1"
+    "sinon": "^1.17.1",
+    "webpack": "^1.12.2"
   }
 }

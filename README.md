@@ -1,5 +1,5 @@
-# symians-libs
-Common models for the symians project.
+# symians-models
+Common db/store models and utils for the symians project.
 
 #### Usage:
 `npm run test:cont` - run tests 

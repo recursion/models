@@ -1,2 +1,3 @@
-require('babel/register');
-require('./src/index.js');
+import * as loader from './src/zoneloader'
+
+export {loader}
