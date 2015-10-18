@@ -1,9 +1,10 @@
-import {Zone} from 'symians-lib'
+import {Zone, Mob} from 'symians-lib'
 import Promise from 'bluebird'
 import winston from 'winston'
 import redis from 'redis'
 
 const client = redis.createClient();
+Promise.promisifyAll(redis.RedisClient.prototype);
 
 const WIDTH = 256;
 const HEIGHT = 256;
@@ -14,7 +15,8 @@ const HEIGHT = 256;
  * generates a new one
  * @returns {Promise}
  */
-export function loadOrCreate(){
+export function loadOrCreate(emitter){
+  const defaultStartZone = 1;
   return new Promise((resolve, reject)=>{
     client.on('connect', function(err){
       if (err){
@@ -22,9 +24,8 @@ export function loadOrCreate(){
       }
       winston.info('Connected');
       // look for zone:1 by defaul
-      client.hgetall(`zone:1`, (err, zone)=>{
-        winston.info(zone);
-        zone ? resolve(inflateZone(1)) : resolve(genZone());
+      client.hgetall(`zone:${defaultStartZone}`, (err, zone)=>{
+        zone ? resolve(inflateZone(defaultStartZone)) : resolve(genZone(emitter));
       });
     });
   });
@@ -34,7 +35,7 @@ export function loadOrCreate(){
  * generate a new zone
  * @returns {Promise}
  */
-export function genZone(){
+export function genZone(emitter){
   winston.info('Creating new Zone');
   return new Promise((resolve, reject)=>{
     // create a zone?
@@ -48,6 +49,7 @@ export function genZone(){
       client.hmset(`zone:${zoneId}`,
         'width', WIDTH,
         'height', HEIGHT,
+        'mobs', `zone:${zoneId}:mobs`,
         'locations', `zone:${zoneId}:locations`
       );
 
@@ -74,6 +76,9 @@ export function genZone(){
 
         }
       }
+      // add a mob to the game world
+      zone.mobs.push(new Mob(5, 5, emitter, zone));
+
       winston.info('Done');
       resolve(zone);
     });
@@ -106,36 +111,49 @@ export function inflateZone(id=1){
         reject(err);
       }
 
-
+      // create a zone
       let zone = new Zone(zoneData.width, zoneData.height);
-      // load/populate each location within the zone
-      client.lrange(`zone:${id}:locations`, 0, -1, (err, locs)=>{
-        if (err) {
-          reject(err);
-        }
 
-        processLocations(locs, zone);
+      // populate it with data
+      let results = [];
+      results.push(get('mobs', id, zone));
+      results.push(get('locations', id, zone));
 
-      });
-      resolve(zone);
+      // once we get all the data, resolve the promise with it
+      Promise.all(results)
+        .then(()=>{
+          resolve(zone);
+        })
+        .catch((err)=>{
+          winston.info(err);
+          throw new Error(err);
+        });
+
     });
   });
 }
-
-function processLocations(locations, zone){
-  const starttime = Date.now();
-  locations.forEach((loc, index)=>{
-    if (Date.now() - starttime < 15){
-      processLocation(zone, loc);
-    } else {
-      setTimeout(()=> {
-        processLocation(zone, loc);
-      }, 1);
-    }
-  });
-}
-function processLocation(zone, loc){
-  client.hgetall(loc, (err, loc)=>{
-    zone.locations.push(loc);
+function get(target, zoneId, zone){
+  return new Promise((resolve, reject)=>{
+    // load all mobs
+    client.lrangeAsync(`zone:${zoneId}:${target}`, 0, -1)
+      .then((result)=>{
+        const work = [];
+        result.forEach((obj)=>{
+          // add each async call into our work array
+          work.push(
+          client.hgetallAsync(obj)
+            .then((objData)=>{
+              return zone[target].push(objData);
+            })
+          );
+        });
+        return Promise.all(work);
+      })
+      .then(()=>{
+        resolve(zone);
+      })
+      .catch((err)=>{
+        reject(err);
+      });
   });
 }
